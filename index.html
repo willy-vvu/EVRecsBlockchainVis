@@ -1,0 +1,192 @@
+<!doctype html>
+<html>
+  <head>
+    <style>
+      @font-face{
+        font-family:Montserrat;
+        src:url("Montserrat/Montserrat-Regular.ttf");
+      }
+      body{
+        margin:0;
+        background-color:black;
+      }
+      body,html,canvas{
+        position:absolute;
+        left:0;right:0;top:0;bottom:0;
+      }
+    </style>
+  </head>
+  <body>
+    <script src="p5.js"></script>
+    <script>
+      // from stackoverflow
+      function ascending(a,b){
+        return a-b;
+      }
+      function uniq(a) {
+        return a.sort(ascending).filter(function(item, pos, ary) {
+            return !pos || item != ary[pos - 1];
+        })
+      }
+
+      initialData = Array.apply(null,Array(8)).map(()=>Math.random()*128).sort(ascending);
+      Node = {
+        create(x,y,heading){
+          var data = initialData.slice(0);
+          var counter = null;
+          var id = Math.random().toString(16).slice(2);
+          return {x,y,rotation:heading,heading,data,id,counter};
+        },
+        update(node){
+          if(node.counter <= 0 || node.counter == null){
+            node.heading+=Math.round(Math.random()*2-1)*Math.PI/2
+            if(node.counter == null) {
+              node.rotation = node.heading;
+            }
+            node.counter = (Math.random()*10+2)*60;
+          }
+          node.counter--;
+          var speed = 0.1;
+          node.x+=speed*Math.cos(node.rotation);
+          node.y+=speed*Math.sin(node.rotation);
+          var margin = 20;
+          if(node.x < -margin) node.x += 2*margin+width;
+          if(node.x > width+margin) node.x -= 2*margin+width;
+          if(node.y < -margin) node.y += 2*margin+height;
+          if(node.y > height+margin) node.y -= 2*margin+height;
+          node.rotation+=Math.min(Math.max(node.heading-node.rotation,-0.01),0.01)
+        },
+        match(node,node2){
+          push();
+          var d = dist(node.x,node.y,node2.x,node2.y);
+          var maxdist = 300;
+          if(d<maxdist){
+            var newdata = 0;
+            if(node.data.length != node2.data.length || node.data[node.data.length-1] != node2.data[node2.data.length-1]){
+              newdata = max(node.data[node.data.length-1], node2.data[node2.data.length-1]);
+              if(Math.random()<0.01){
+                var newarray = uniq(node.data.concat(node2.data));
+                node.data = newarray.slice(0);
+                node2.data = newarray.slice(0);
+              }
+            }
+            noFill();
+            var col = newdata == 0? gray : colors[Math.floor(newdata)%colors.length]
+            stroke(col.levels[0],col.levels[1],col.levels[2],max(120,255*(1-d/maxdist)));
+            strokeWeight(3+3*(1-d/maxdist));
+            line(node.x,node.y,node2.x,node2.y);
+          }
+          pop();
+        },
+        render(node){
+          push();
+          translate(node.x, node.y);
+          rotate(node.rotation);
+          noStroke();
+          var size=6;
+          for(var i = 0; i < 8; i++){
+            fill(colors[Math.floor(node.data[node.data.length-i-1])%colors.length]);
+            rect((i/2|0)*size-1*size,(i%2)*size-size,size+0.5,size+0.5);
+          }
+          pop();
+        },
+        renderMessage(node){
+          if(node.message) {
+            push();
+            translate(node.x, node.y);
+            Message.render(node.message);
+            pop();
+          }
+        }
+      }
+      Message = {
+        create(name, verb, credits, reason, color){
+          return {name, verb, credits, reason, color, age: 0}
+        },
+        render(message){
+          push();
+          noStroke();
+          textFont("Montserrat,sans-serif");
+          var duration = 300;
+          var animduration = 20;
+          if(message.age < duration){
+            message.age++;
+            var t=min(1,message.age/animduration,(duration-message.age)/animduration),margin=10;
+            anim=(1-(1-t)*(1-t)*(1-t)*(1-t));
+            anim2=0.5+0.5*anim;
+            var h=anim*70,w=anim2*280;
+            fill("#111");
+            rect(margin,-margin-h,w,h);
+            if(message.age>animduration && message.age<duration-animduration){
+              textSize(16);
+              fill(message.color);
+              text((/*message.name+" "+*/message.verb+""+message.credits+" credits").toUpperCase(), margin*2,-margin-7.5*h/12)
+              textSize(12);
+              fill("#ccc");
+              text((message.reason).toUpperCase(), margin*2,-margin-4.5*h/12)
+              textSize(10);
+              fill("#444");
+              text(("vin: "+message.name).toUpperCase(), margin*2,-margin-2*h/12)
+            }
+          }
+          pop();
+        }
+      }
+      function setup(){
+        colors = [
+          //color("#444444"),
+          color("#ffff00"),
+          // "#ffff00",
+          // "#ff00ff",
+          color("#aa00ff"),
+          color("#aaff00"),
+          color("#ffaa00"),
+          color("#00aaff"),
+          color("#ff00aa"),
+          color("#00ffaa"),
+        ]
+        gray = color("#444444");
+
+        createCanvas(window.innerWidth, window.innerHeight);
+        window.onresize = function(){
+          resizeCanvas(window.innerWidth, window.innerHeight);
+        }
+        bg = loadImage("SFMap - Edited.png");
+        nodes = Array.apply(null,Array(40)).map(()=>Node.create(random(0,width),random(0,height),Math.random()*TWO_PI))
+      }
+      function draw(){
+        background(0);
+        image(bg,0,0,width,width*bg.height/bg.width);
+        // rect(0,0,100,100);
+        // nodes[0].rotation+=0.01
+        nodes.forEach(Node.update);
+        nodes.forEach((node,index,array)=>{
+          nodes.slice(index+1).forEach((node2)=>{
+            Node.match(node,node2);
+          })
+        });
+        nodes.forEach(Node.render);
+        nodes.forEach(Node.renderMessage);
+        if(Math.random()<0.01/*||frameCount<10*/){
+          var i = Math.floor(Math.random()*nodes.length)
+          var newdata = nodes[i].data[nodes[i].data.length-1]+Math.random()*(colors.length-1);
+          nodes[i].data.push(newdata);
+          var reason = [
+            ["-","for parking"],
+            ["-","to use the HOV lane"],
+            ["-","to pay the toll"],
+            ["-","to use the highway"],
+            ["-","to take the shortcut"],
+            ["+","for taking a longer route"],
+            ["+","for moving out of the way"],
+            ["+","for completion of a delivery"],
+            ["+","for a successful carpool"],
+            ["+","for charging at a non-peak time"],
+          ];
+          reason = reason[Math.floor(Math.random()*reason.length)];
+          nodes[i].message = Message.create(nodes[i].id, reason[0], Math.random()*10|0+2, reason[1], colors[Math.floor(newdata)%colors.length]);
+        }
+      }
+    </script>
+  </body>
+</html>
